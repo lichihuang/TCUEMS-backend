@@ -1,14 +1,14 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
-using System.Data;
 using System.Data.SqlClient;
+using System.Data;
 using TCUEMS_BackendNew.Data;
 using TCUEMS_BackendNew.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// 讀取 CORS 設定
+builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+var corsSettings = builder.Configuration.GetSection("CorsSettings").Get<CorsSettings>();
 
 // 資料庫連線字串
 var connectionString = "Data Source=.;Initial Catalog=SemesterWarning;Integrated Security=true;";
@@ -17,7 +17,8 @@ builder.Services.AddScoped<IDbConnection>(c => new SqlConnection(connectionStrin
 builder.Services.AddTransient<ISemesterWarningRepository, SemesterWarningRepository>(provider =>
     new SemesterWarningRepository(provider.GetRequiredService<IDbConnection>().ConnectionString));
 
-// Swagger 相關服務設定
+builder.Services.AddLogging(); // 添加這一行以啟用日誌
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Your API", Version = "v1" });
@@ -33,9 +34,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Semester Warning API"));
 }
 
-//app.UseHttpsRedirection();  //  HTTPS 重新導向
+// 處理 CORS 問題
+app.UseCors(builder => builder.WithOrigins(corsSettings?.AllowedOrigins)
+                              .AllowAnyHeader()
+                              .AllowAnyMethod());
 
 app.UseAuthorization();
+
+app.UseMiddleware<LoggingMiddleware>();
 
 app.MapControllers();
 
